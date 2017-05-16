@@ -1,6 +1,8 @@
 ;(function() {
+	var A = AUI();
+
 	var BBCodeUtil = Liferay.BBCodeUtil;
-	var Util = Liferay.Util;
+	var CKTools = CKEDITOR.tools;
 
 	var Parser = Liferay.BBCodeParser;
 
@@ -9,12 +11,13 @@
 	var MAP_FONT_SIZE = {
 		1: 10,
 		2: 12,
-		3: 16,
-		4: 18,
-		5: 24,
-		6: 32,
-		7: 48,
-		defaultSize: 12
+		3: 14,
+		4: 16,
+		5: 18,
+		6: 24,
+		7: 32,
+		8: 48,
+		defaultSize: 14
 	};
 
 	var MAP_HANDLERS = {
@@ -48,23 +51,49 @@
 		right: '_handleTextAlign'
 	};
 
-	var MAP_LIST_STYLES = {
+	var MAP_IMAGE_ATTRIBUTES = {
+		'alt': 1,
+		'class': 1,
+		'dir': 1,
+		'height': 1,
+		'id': 1,
+		'lang': 1,
+		'longdesc': 1,
+		'style': 1,
+		'title': 1,
+		'width': 1
+	};
+
+	var MAP_ORDERED_LIST_STYLES = {
 		1: 'list-style-type: decimal;',
-		a: 'list-style-type: lower-alpha;'
+		a: 'list-style-type: lower-alpha;',
+		i: 'list-style-type: lower-roman;',
+		A: 'list-style-type: upper-alpha;',
+		I: 'list-style-type: upper-roman;'
 	};
 
 	var MAP_TOKENS_EXCLUDE_NEW_LINE = {
 		'*': 3,
 		li: 3,
-		tr: 3,
+		table: 2,
 		td: 3,
 		th: 3,
-		table: 2
+		tr: 3
 	};
+
+	var MAP_UNORDERED_LIST_STYLES = {
+		circle: 'list-style-type: circle;',
+		disc: 'list-style-type: disc;',
+		square: 'list-style-type: square;'
+	};
+
+	var REGEX_ATTRS = /\s*([^=]+)\s*=\s*"([^"]+)"\s*/g;
 
 	var REGEX_COLOR = /^(:?aqua|black|blue|fuchsia|gray|green|lime|maroon|navy|olive|purple|red|silver|teal|white|yellow|#(?:[0-9a-f]{3})?[0-9a-f]{3})$/i;
 
-	var REGEX_IMAGE_SRC = /^(?:https?:\/\/|\/)[-;\/\?:@&=\+\$,_\.!~\*'\(\)%0-9a-z]{1,512}$/i;
+	var REGEX_ESCAPE_REGEX = /[-[\]{}()*+?.,\\^$|#\s]/g;
+
+	var REGEX_IMAGE_SRC = /^(?:https?:\/\/|\/)[-;\/\?:@&=\+\$,_\.!~\*'\(\)%0-9a-z]{1,2048}$/i;
 
 	var REGEX_LASTCHAR_NEWLINE = /\r?\n$/;
 
@@ -74,9 +103,7 @@
 
 	var REGEX_STRING_IS_NEW_LINE = /^\r?\n$/;
 
-	var REGEX_TAG_NAME = /^\/?(?:b|center|code|colou?r|email|i|img|justify|left|pre|q|quote|right|\*|s|size|table|tr|th|td|li|list|font|u|url)$/i;
-
-	var REGEX_URI = /^[-;\/\?:@&=\+\$,_\.!~\*'\(\)%0-9a-z#]{1,512}$|\${\S+}/i;
+	var REGEX_URI = /^[-;\/\?:@&=\+\$,_\.!~\*'\(\)%0-9a-z#]{1,2048}$|\${\S+}/i;
 
 	var STR_BLANK = '';
 
@@ -90,11 +117,13 @@
 
 	var STR_NEW_LINE = '\n';
 
+	var STR_START = 'start';
+
+	var STR_TAG_A_CLOSE = '</a>';
+
 	var STR_TAG_ATTR_CLOSE = '">';
 
 	var STR_TAG_ATTR_HREF_OPEN = '<a href="';
-
-	var STR_TAG_A_CLOSE = '</a>';
 
 	var STR_TAG_END_CLOSE = '>';
 
@@ -114,11 +143,15 @@
 
 	var STR_TEXT_ALIGN = '<p style="text-align: ';
 
+	var STR_TYPE = 'type';
+
 	var TOKEN_DATA = Parser.TOKEN_DATA;
 
 	var TOKEN_TAG_END = Parser.TOKEN_TAG_END;
 
 	var TOKEN_TAG_START = Parser.TOKEN_TAG_START;
+
+	var tplImage = new CKEDITOR.template('<img src="{imageSrc}" {attributes} />');
 
 	var Converter = function(config) {
 		var instance = this;
@@ -132,6 +165,17 @@
 
 	Converter.prototype = {
 		constructor: Converter,
+
+		init: function(config) {
+			var instance = this;
+
+			instance._parser = new Parser(config.parser);
+
+			instance._config = config;
+
+			instance._result = [];
+			instance._stack = [];
+		},
 
 		convert: function(data) {
 			var instance = this;
@@ -147,13 +191,13 @@
 
 				var type = token.type;
 
-				if (type == TOKEN_TAG_START) {
+				if (type === TOKEN_TAG_START) {
 					instance._handleTagStart(token);
 				}
-				else if (type == TOKEN_TAG_END) {
+				else if (type === TOKEN_TAG_END) {
 					instance._handleTagEnd(token);
 				}
-				else if (type == TOKEN_DATA) {
+				else if (type === TOKEN_DATA) {
 					instance._handleData(token);
 				}
 				else {
@@ -168,16 +212,7 @@
 			return result;
 		},
 
-		init: function(config) {
-			var instance = this;
-
-			instance._parser = new Parser(config.parser);
-
-			instance._result = [];
-			instance._stack = [];
-		},
-
-		_escapeHTML: Util.escapeHTML,
+		_escapeHTML: A.Lang.String.escapeHTML,
 
 		_extractData: function(toTagName, consume) {
 			var instance = this;
@@ -191,11 +226,12 @@
 			do {
 				token = instance._parsedData[index++];
 
-				if (token.type == TOKEN_DATA) {
+				if (token && token.type === TOKEN_DATA) {
 					result.push(token.value);
 				}
 
-			} while((token.type != TOKEN_TAG_END) && (token.value != toTagName));
+			}
+			while (token && token.type !== TOKEN_TAG_END && token.value !== toTagName);
 
 			if (consume) {
 				instance._tokenPointer = index - 1;
@@ -235,9 +271,29 @@
 		_handleData: function(token) {
 			var instance = this;
 
+			var emoticonImages = instance._config.emoticonImages;
+			var emoticonPath = instance._config.emoticonPath;
+			var emoticonSymbols = instance._config.emoticonSymbols;
+
 			var value = instance._escapeHTML(token.value);
 
 			value = instance._handleNewLine(value);
+
+			if (!instance._noParse) {
+				var length = emoticonSymbols.length;
+
+				for (var i = 0; i < length; i++) {
+					var image = tplImage.output(
+						{
+							imageSrc: emoticonPath + emoticonImages[i]
+						}
+					);
+
+					var escapedSymbol = emoticonSymbols[i].replace(REGEX_ESCAPE_REGEX, '\\$&');
+
+					value = value.replace(new RegExp(escapedSymbol, 'g'), image);
+				}
+			}
 
 			instance._result.push(value);
 		},
@@ -260,7 +316,7 @@
 					hrefInput = STR_MAILTO + hrefInput;
 				}
 
-				href = CKEDITOR.tools.htmlEncodeAttr(hrefInput);
+				href = CKTools.htmlEncodeAttr(hrefInput);
 			}
 
 			instance._result.push(STR_TAG_ATTR_HREF_OPEN + href + STR_TAG_ATTR_CLOSE);
@@ -273,7 +329,7 @@
 
 			var fontName = token.attribute;
 
-			fontName = CKEDITOR.tools.htmlEncodeAttr(fontName);
+			fontName = CKTools.htmlEncodeAttr(fontName);
 
 			instance._result.push(STR_TAG_SPAN_STYLE_OPEN + 'font-family: ' + fontName + STR_TAG_ATTR_CLOSE);
 
@@ -288,35 +344,87 @@
 			var imageSrcInput = instance._extractData(STR_IMG, true);
 
 			if (REGEX_IMAGE_SRC.test(imageSrcInput)) {
-				imageSrc = CKEDITOR.tools.htmlEncodeAttr(imageSrcInput);
+				imageSrc = CKTools.htmlEncodeAttr(imageSrcInput);
 			}
 
-			instance._result.push('<img src="', imageSrc, STR_TAG_ATTR_CLOSE);
+			var result = tplImage.output(
+				{
+					attributes: instance._handleImageAttributes(token, token.value),
+					imageSrc: imageSrc
+				}
+			);
+
+			instance._result.push(result);
+		},
+
+		_handleImageAttributes: function(token) {
+			var instance = this;
+
+			var attrs = STR_BLANK;
+
+			if (token.attribute) {
+				var bbCodeAttr;
+
+				while (bbCodeAttr = REGEX_ATTRS.exec(token.attribute)) {
+					var attrName = bbCodeAttr[1];
+
+					if (MAP_IMAGE_ATTRIBUTES[attrName]) {
+						var attrValue = bbCodeAttr[2];
+
+						if (attrValue) {
+							attrs += ' ' + attrName + '="' + instance._escapeHTML(attrValue) + '"';
+						}
+					}
+				}
+			}
+
+			return attrs;
 		},
 
 		_handleList: function(token) {
 			var instance = this;
 
+			var listAttributes = STR_BLANK;
 			var tag = 'ul';
-			var styleAttr;
 
-			var listAttribute = token.attribute;
+			if (token.attribute) {
+				var listAttribute;
 
-			if (listAttribute) {
-				tag = 'ol';
+				while (listAttribute = REGEX_ATTRS.exec(token.attribute)) {
+					var attrName = listAttribute[1];
+					var attrValue = listAttribute[2];
 
-				styleAttr = MAP_LIST_STYLES[listAttribute];
+					var styleAttr;
+
+					if (attrName === STR_TYPE) {
+						if (MAP_ORDERED_LIST_STYLES[attrValue]) {
+							styleAttr = MAP_ORDERED_LIST_STYLES[attrValue];
+
+							tag = 'ol';
+						}
+						else {
+							styleAttr = MAP_UNORDERED_LIST_STYLES[attrValue];
+						}
+
+						if (styleAttr) {
+							listAttributes += ' style="' + styleAttr + '"';
+						}
+					}
+					else if (attrName === STR_START && REGEX_NUMBER.test(attrValue)) {
+						listAttributes += ' start="' + attrValue + '"';
+					}
+				}
 			}
 
-			var result = STR_TAG_OPEN + tag + STR_TAG_END_CLOSE;
-
-			if (styleAttr) {
-				result = STR_TAG_OPEN + tag + ' style="' + styleAttr + STR_TAG_ATTR_CLOSE;
-			}
-
-			instance._result.push(result);
+			instance._result.push(STR_TAG_OPEN + tag + listAttributes + STR_TAG_END_CLOSE);
 
 			instance._stack.push(STR_TAG_END_OPEN + tag + STR_TAG_END_CLOSE);
+		},
+
+		_handleListItem: function(token) {
+			var instance = this;
+
+			instance._handleSimpleTag('li');
 		},
 
 		_handleNewLine: function(value) {
@@ -330,17 +438,17 @@
 
 					if (nextToken &&
 						hasOwnProperty.call(MAP_TOKENS_EXCLUDE_NEW_LINE, nextToken.value) &&
-						(nextToken.type & MAP_TOKENS_EXCLUDE_NEW_LINE[nextToken.value])) {
+						nextToken.type & MAP_TOKENS_EXCLUDE_NEW_LINE[nextToken.value]) {
 
-							value = STR_BLANK;
+						value = STR_BLANK;
 					}
 				}
-				else if(REGEX_LASTCHAR_NEWLINE.test(value)) {
+				else if (REGEX_LASTCHAR_NEWLINE.test(value)) {
 					nextToken = instance._parsedData[instance._tokenPointer + 1];
 
 					if (nextToken &&
-						(nextToken.type == TOKEN_TAG_END) &&
-						(nextToken.value == STR_TAG_LIST_ITEM_SHORT)) {
+						nextToken.type === TOKEN_TAG_END &&
+						nextToken.value === STR_TAG_LIST_ITEM_SHORT) {
 
 						value = value.substring(0, value.length - 1);
 					}
@@ -357,76 +465,22 @@
 			return value;
 		},
 
-		_handleTagStart: function(token) {
-			var instance = this;
-
-			var tagName = token.value;
-
-			if (instance._isValidTag(tagName)) {
-				var handlerName = MAP_HANDLERS[tagName] || '_handleSimpleTags';
-
-				instance[handlerName](token);
-			}
-		},
-
-		_handleTagEnd: function(token) {
-			var instance = this;
-
-			var tagName = token.value;
-
-			if (instance._isValidTag(tagName)) {
-				instance._result.push(instance._stack.pop());
-
-				if (tagName == STR_CODE) {
-					instance._noParse = false;
-				}
-			}
-		},
-
-		_handleTextAlign: function(token) {
-			var instance = this;
-
-			instance._result.push(STR_TEXT_ALIGN, token.value, STR_TAG_ATTR_CLOSE);
-
-			instance._stack.push(STR_TAG_P_CLOSE);
-		},
-
-		_handleListItem: function(token) {
-			var instance = this;
-
-			instance._handleSimpleTag('li');
-		},
-
 		_handleQuote: function(token) {
 			var instance = this;
 
 			var cite = token.attribute;
 
-			var result = '<blockquote>';
+			var result = '<blockquote><p>';
 
 			if (cite && cite.length) {
 				cite = BBCodeUtil.escape(cite);
 
-				result = '<blockquote><cite>' + cite + '</cite>';
+				result += '<cite>' + cite + '</cite>';
 			}
 
 			instance._result.push(result);
 
-			instance._stack.push('</blockquote>');
-		},
-
-		_handleSize: function(token) {
-			var instance = this;
-
-			var size = token.attribute;
-
-			if (!size || !REGEX_NUMBER.test(size)) {
-				size = '1';
-			}
-
-			instance._result.push(STR_TAG_SPAN_STYLE_OPEN, 'font-size: ', instance._getFontSize(size), 'px', STR_TAG_ATTR_CLOSE);
-
-			instance._stack.push(STR_TAG_SPAN_CLOSE);
+			instance._stack.push('</p></blockquote>');
 		},
 
 		_handleSimpleTag: function(tagName) {
@@ -441,6 +495,20 @@
 			var instance = this;
 
 			instance._handleSimpleTag(token.value);
+		},
+
+		_handleSize: function(token) {
+			var instance = this;
+
+			var size = token.attribute;
+
+			if (!size || !REGEX_NUMBER.test(size)) {
+				size = '1';
+			}
+
+			instance._result.push(STR_TAG_SPAN_STYLE_OPEN, 'font-size: ', instance._getFontSize(size), 'px;', STR_TAG_ATTR_CLOSE);
+
+			instance._stack.push(STR_TAG_SPAN_CLOSE);
 		},
 
 		_handleStrikeThrough: function(token) {
@@ -479,6 +547,36 @@
 			instance._handleSimpleTag('tr');
 		},
 
+		_handleTagEnd: function(token) {
+			var instance = this;
+
+			var tagName = token.value;
+
+			instance._result.push(instance._stack.pop());
+
+			if (tagName === STR_CODE) {
+				instance._noParse = false;
+			}
+		},
+
+		_handleTagStart: function(token) {
+			var instance = this;
+
+			var tagName = token.value;
+
+			var handlerName = MAP_HANDLERS[tagName] || '_handleSimpleTags';
+
+			instance[handlerName](token);
+		},
+
+		_handleTextAlign: function(token) {
+			var instance = this;
+
+			instance._result.push(STR_TEXT_ALIGN, token.value, STR_TAG_ATTR_CLOSE);
+
+			instance._stack.push(STR_TAG_P_CLOSE);
+		},
+
 		_handleURL: function(token) {
 			var instance = this;
 
@@ -487,22 +585,12 @@
 			var hrefInput = token.attribute || instance._extractData(STR_TAG_URL, false);
 
 			if (REGEX_URI.test(hrefInput)) {
-				href = CKEDITOR.tools.htmlEncodeAttr(hrefInput);
+				href = CKTools.htmlEncodeAttr(hrefInput);
 			}
 
 			instance._result.push(STR_TAG_ATTR_HREF_OPEN + href + STR_TAG_ATTR_CLOSE);
 
 			instance._stack.push(STR_TAG_A_CLOSE);
-		},
-
-		_isValidTag: function(tagName) {
-			var valid = false;
-
-			if (tagName && tagName.length) {
-				valid = REGEX_TAG_NAME.test(tagName);
-			}
-
-			return valid;
 		},
 
 		_reset: function() {

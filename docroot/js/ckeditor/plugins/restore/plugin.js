@@ -20,7 +20,7 @@
 						'Restore',
 						{
 							command: pluginName,
-							icon: themeDisplay.getPathJavaScript() + '/editor/ckeditor/plugins/restore/assets/restore.png',
+							icon: Liferay.AUI.getPathCKEditor() + '/ckeditor/plugins/restore/assets/restore.png',
 							label: Liferay.Language.get('restore-the-original-content')
 						}
 					);

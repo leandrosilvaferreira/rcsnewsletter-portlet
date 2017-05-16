@@ -2,7 +2,7 @@
 	var toHex = function(val) {
 		val = parseInt(val, 10).toString(16);
 
-		if (val.length == 1) {
+		if (val.length === 1) {
 			val = '0' + val;
 		}
 
@@ -39,27 +39,45 @@
 		strong: '_handleStrong'
 	};
 
+	var MAP_IMAGE_ATTRIBUTES = [
+		'alt',
+		'class',
+		'data-image-id',
+		'dir',
+		'height',
+		'id',
+		'lang',
+		'longdesc',
+		'style',
+		'title',
+		'width'
+	];
+
 	var MAP_LINK_HANDLERS = {
 		0: 'email'
 	};
 
 	var NEW_LINE = '\n';
 
-	var NEW_THREAD_URL = CKEDITOR.config.newThreadURL;
-
 	var REGEX_COLOR_RGB = /^rgb\s*\(\s*([01]?\d\d?|2[0-4]\d|25[0-5])\,\s*([01]?\d\d?|2[0-4]\d|25[0-5])\,\s*([01]?\d\d?|2[0-4]\d|25[0-5])\s*\)$/;
 
 	var REGEX_EM = /em$/i;
 
-	var REGEX_ESCAPE_REGEX = /[-[\]{}()*+?.,\\^$|#\s]/g;
-
 	var REGEX_LASTCHAR_NEWLINE_WHITESPACE = /(\r?\n\s*)$/;
 
-	var REGEX_LIST_ALPHA = /(upper|lower)-alpha/i;
+	var REGEX_LIST_CIRCLE = /circle/i;
+
+	var REGEX_LIST_LOWER_ALPHA = /lower-alpha/i;
+
+	var REGEX_LIST_LOWER_ROMAN = /lower-roman/i;
+
+	var REGEX_LIST_SQUARE = /square/i;
+
+	var REGEX_LIST_UPPER_ALPHA = /upper-alpha/i;
+
+	var REGEX_LIST_UPPER_ROMAN = /upper-roman/i;
 
 	var REGEX_NEWLINE = /\r?\n/g;
-
-	var REGEX_NOT_WHITESPACE = /[^\t\n\r ]/;
 
 	var REGEX_PERCENT = /%$/i;
 
@@ -77,9 +95,9 @@
 
 	var TAG_BR = 'br';
 
-	var TAG_CODE = 'code';
-
 	var TAG_CITE = 'cite';
+
+	var TAG_CODE = 'code';
 
 	var TAG_DIV = 'div';
 
@@ -95,37 +113,14 @@
 
 	var TAG_TD = 'td';
 
-	var TEMPLATE_IMAGE = '<img src="{image}">';
+	var BBCodeDataProcessor = function(editor) {
+		this._editor = editor;
+	};
 
-	CKEDITOR.plugins.add(
-		'bbcode_data_processor',
-		{
-			requires: ['htmlwriter'],
+	BBCodeDataProcessor.prototype = {
+		constructor: BBCodeDataProcessor,
 
-			init: function(editor) {
-				editor.dataProcessor = new CKEDITOR.htmlDataProcessor(editor);
-
-				editor.on(
-					'paste',
-					function(event) {
-						var data = event.data;
-
-						var htmlData = data.dataValue;
-
-						htmlData = CKEDITOR.htmlDataProcessor.prototype.toDataFormat(htmlData);
-
-						data.dataValue = htmlData;
-					},
-					editor.element.$
-				);
-
-				editor.fire('customDataProcessorLoaded');
-			}
-		}
-	);
-
-	CKEDITOR.htmlDataProcessor.prototype = {
-		toDataFormat: function(html, fixForBody ) {
+		toDataFormat: function(html, fixForBody) {
 			var instance = this;
 
 			html = html.replace(REGEX_PRE, '$&\n');
@@ -135,27 +130,34 @@
 			return data;
 		},
 
-		toHtml: function(data, fixForBody) {
+		toHtml: function(data, config) {
 			var instance = this;
 
 			if (!instance._bbcodeConverter) {
-				instance._bbcodeConverter = new CKEDITOR.BBCode2HTML();
+				var editorConfig = this._editor.config;
+
+				var converterConfig = {
+					emoticonImages: editorConfig.smiley_images,
+					emoticonPath: editorConfig.smiley_path,
+					emoticonSymbols: editorConfig.smiley_symbols
+				};
+
+				instance._bbcodeConverter = new CKEDITOR.BBCode2HTML(converterConfig);
 			}
 
-			data = instance._bbcodeConverter.convert(data);
+			if (config) {
+				var fragment = CKEDITOR.htmlParser.fragment.fromHtml(data);
 
-			var emoticonImages = CKEDITOR.config.smiley_images;
-			var emoticonSymbols = CKEDITOR.config.smiley_symbols;
-			var imagePath = CKEDITOR.config.smiley_path;
+				var writer = new CKEDITOR.htmlParser.basicWriter();
 
-			var length = emoticonSymbols.length;
+				config.filter.applyTo(fragment);
 
-			for (var i = 0; i < length; i++) {
-				var image = TEMPLATE_IMAGE.replace('{image}', imagePath + emoticonImages[i]);
+				fragment.writeHtml(writer);
 
-				var escapedSymbol = emoticonSymbols[i].replace(REGEX_ESCAPE_REGEX, '\\$&');
-
-				data = data.replace(new RegExp(escapedSymbol, 'g'), image);
+				data = writer.getHtml();
+			}
+			else {
+				data = instance._bbcodeConverter.convert(data);
 			}
 
 			return data;
@@ -175,8 +177,8 @@
 					if (parentTagName) {
 						parentTagName = parentTagName.toLowerCase();
 
-						if ((parentTagName == TAG_PARAGRAPH && parentNode.style.cssText) ||
-							(CKEDITOR.env.gecko && element.tagName && element.tagName.toLowerCase() == TAG_BR && parentTagName == TAG_TD && !element.nextSibling)) {
+						if (parentTagName === TAG_PARAGRAPH && parentNode.style.cssText ||
+							CKEDITOR.env.gecko && element.tagName && element.tagName.toLowerCase() === TAG_BR && parentTagName === TAG_TD && !element.nextSibling) {
 
 							allowNewLine = false;
 						}
@@ -188,11 +190,9 @@
 		},
 
 		_checkParentElement: function(element, tagName) {
-			var instance = this;
-
 			var parentNode = element.parentNode;
 
-			return (parentNode && parentNode.tagName && (parentNode.tagName.toLowerCase() == tagName));
+			return parentNode && parentNode.tagName && parentNode.tagName.toLowerCase() === tagName;
 		},
 
 		_convert: function(data) {
@@ -215,9 +215,9 @@
 			color = color.replace(
 				REGEX_COLOR_RGB,
 				function(match, red, green, blue, offset, string) {
-					var r = toHex(red);
-					var g = toHex(green);
 					var b = toHex(blue);
+					var g = toHex(green);
+					var r = toHex(red);
 
 					color = '#' + r + g + b;
 
@@ -251,12 +251,14 @@
 			var imagePath = element.getAttribute('src');
 
 			if (imagePath) {
+				var editorConfig = this._editor.config;
+
 				var image = imagePath.substring(imagePath.lastIndexOf('/') + 1);
 
-				var imageIndex = instance._getImageIndex(CKEDITOR.config.smiley_images, image);
+				var imageIndex = instance._getImageIndex(editorConfig.smiley_images, image);
 
 				if (imageIndex >= 0) {
-					emoticonSymbol = CKEDITOR.config.smiley_symbols[imageIndex];
+					emoticonSymbol = editorConfig.smiley_symbols[imageIndex];
 				}
 			}
 
@@ -276,7 +278,7 @@
 
 				fontSize = parseFloat(fontSize, 10);
 
-				fontSize = Math.round((fontSize * bodySize)) + 'px';
+				fontSize = Math.round(fontSize * bodySize) + 'px';
 
 				fontSize = instance._getFontSize(fontSize);
 			}
@@ -284,7 +286,7 @@
 				bodySize = instance._getBodySize();
 
 				fontSize = parseFloat(fontSize, 10);
-				fontSize = Math.round(((fontSize * bodySize) / 100)) + 'px';
+				fontSize = Math.round(fontSize * bodySize / 100) + 'px';
 
 				fontSize = instance._getFontSize(fontSize);
 			}
@@ -301,20 +303,23 @@
 			else if (sizeValue <= 12) {
 				sizeValue = '2';
 			}
-			else if (sizeValue <= 16) {
+			else if (sizeValue <= 14) {
 				sizeValue = '3';
 			}
-			else if (sizeValue <= 18) {
+			else if (sizeValue <= 16) {
 				sizeValue = '4';
 			}
-			else if (sizeValue <= 24) {
+			else if (sizeValue <= 18) {
 				sizeValue = '5';
 			}
-			else if (sizeValue <= 32) {
+			else if (sizeValue <= 24) {
 				sizeValue = '6';
 			}
-			else {
+			else if (sizeValue <= 32) {
 				sizeValue = '7';
+			}
+			else {
+				sizeValue = '8';
 			}
 
 			return sizeValue;
@@ -341,27 +346,6 @@
 			return index;
 		},
 
-		_isAllWS: function(node) {
-			return node.isElementContentWhitespace || !(REGEX_NOT_WHITESPACE.test(node.data));
-		},
-
-		_isIgnorable: function(node) {
-			var instance = this;
-
-			var nodeType = node.nodeType;
-
-			return (node.isElementContentWhitespace || nodeType == 8) ||
-				((nodeType == 3) && instance._isAllWS(node));
-		},
-
-		_isLastItemNewLine: function() {
-			var instance = this;
-
-			var endResult = instance._endResult;
-
-			return (endResult && REGEX_LASTCHAR_NEWLINE_WHITESPACE.test(endResult.slice(-1)));
-		},
-
 		_handle: function(node) {
 			var instance = this;
 
@@ -384,20 +368,18 @@
 
 				var child = children[i];
 
-				if (instance._inPRE || !instance._isIgnorable(child)) {
-					instance._handleElementStart(child, listTagsIn, listTagsOut);
-					instance._handleStyles(child, stylesTagsIn, stylesTagsOut);
+				instance._handleElementStart(child, listTagsIn, listTagsOut);
+				instance._handleStyles(child, stylesTagsIn, stylesTagsOut);
 
-					pushTagList.call(instance, listTagsIn);
-					pushTagList.call(instance, stylesTagsIn);
+				pushTagList.call(instance, listTagsIn);
+				pushTagList.call(instance, stylesTagsIn);
 
-					instance._handle(child);
+				instance._handle(child);
 
-					instance._handleElementEnd(child, listTagsIn, listTagsOut);
+				instance._handleElementEnd(child, listTagsIn, listTagsOut);
 
-					pushTagList.call(instance, stylesTagsOut.reverse());
-					pushTagList.call(instance, listTagsOut);
-				}
+				pushTagList.call(instance, stylesTagsOut.reverse());
+				pushTagList.call(instance, listTagsOut);
 			}
 
 			instance._handleData(node.data, node);
@@ -421,12 +403,12 @@
 
 			if (parentNode &&
 				parentNode.tagName &&
-				(parentNode.tagName.toLowerCase() == TAG_BLOCKQUOTE) &&
+				parentNode.tagName.toLowerCase() === TAG_BLOCKQUOTE &&
 				!parentNode.getAttribute(TAG_CITE)) {
 
 				var endResult = instance._endResult;
 
-				for (var i = (endResult.length - 1); i >= 0; i--) {
+				for (var i = endResult.length - 1; i >= 0; i--) {
 					if (endResult[i] === '[quote]') {
 						endResult[i] = '[quote=';
 
@@ -466,12 +448,12 @@
 			if (tagName) {
 				tagName = tagName.toLowerCase();
 
-				if (tagName == TAG_LI) {
+				if (tagName === TAG_LI) {
 					if (!instance._isLastItemNewLine()) {
 						instance._endResult.push(NEW_LINE);
 					}
 				}
-				else if (tagName == TAG_PRE || tagName == TAG_CODE) {
+				else if (tagName === TAG_PRE || tagName === TAG_CODE) {
 					instance._inPRE = false;
 				}
 			}
@@ -536,28 +518,55 @@
 			else {
 				var attrSrc = element.getAttribute('src');
 
-				listTagsIn.push('[img]');
+				var openTag = '[img' + instance._handleImageAttributes(element) + ']';
 
+				listTagsIn.push(openTag);
 				listTagsIn.push(attrSrc);
 
 				listTagsOut.push('[/img]');
 			}
 		},
 
+		_handleImageAttributes: function(element) {
+			var attrs = '';
+
+			var length = MAP_IMAGE_ATTRIBUTES.length;
+
+			for (var i = 0; i < length; i++) {
+				var attrName = MAP_IMAGE_ATTRIBUTES[i];
+
+				var attrValue = element.getAttribute(attrName);
+
+				if (attrValue) {
+					attrs += ' ' + attrName + '="' + attrValue + '"';
+				}
+			}
+
+			return attrs;
+		},
+
+		_handleLineThrough: function(element, listTagsIn, listTagsOut) {
+			listTagsIn.push('[s]');
+
+			listTagsOut.push('[/s]');
+		},
+
 		_handleLink: function(element, listTagsIn, listTagsOut) {
 			var hrefAttribute = element.getAttribute('href');
 
-			var decodedLink = decodeURIComponent(hrefAttribute);
+			if (hrefAttribute) {
+				var editorConfig = this._editor.config;
 
-			if (decodedLink.indexOf(NEW_THREAD_URL) >= 0) {
-				hrefAttribute = NEW_THREAD_URL;
+				if (hrefAttribute.indexOf(editorConfig.newThreadURL) >= 0) {
+					hrefAttribute = editorConfig.newThreadURL;
+				}
+
+				var linkHandler = MAP_LINK_HANDLERS[hrefAttribute.indexOf(STR_MAILTO)] || 'url';
+
+				listTagsIn.push('[' + linkHandler + '=', hrefAttribute, ']');
+
+				listTagsOut.push('[/' + linkHandler + ']');
 			}
-
-			var linkHandler = MAP_LINK_HANDLERS[hrefAttribute.indexOf(STR_MAILTO)] || 'url';
-
-			listTagsIn.push('[' + linkHandler + '=', hrefAttribute, ']');
-
-			listTagsOut.push('[/' + linkHandler + ']');
 		},
 
 		_handleListItem: function(element, listTagsIn, listTagsOut) {
@@ -570,25 +579,34 @@
 			listTagsIn.push('[*]');
 		},
 
-		_handleLineThrough: function(element, listTagsIn, listTagsOut) {
-			listTagsIn.push('[s]');
-
-			listTagsOut.push('[/s]');
-		},
-
 		_handleOrderedList: function(element, listTagsIn, listTagsOut) {
-			var instance = this;
-
-			listTagsIn.push('[list=');
+			listTagsIn.push('[list');
 
 			var listStyleType = element.style.listStyleType;
 
-			if (REGEX_LIST_ALPHA.test(listStyleType)) {
-				listTagsIn.push('a]');
+			if (REGEX_LIST_LOWER_ALPHA.test(listStyleType)) {
+				listTagsIn.push(' type="a"');
+			}
+			else if (REGEX_LIST_LOWER_ROMAN.test(listStyleType)) {
+				listTagsIn.push(' type="i"');
+			}
+			else if (REGEX_LIST_UPPER_ALPHA.test(listStyleType)) {
+				listTagsIn.push(' type="A"');
+			}
+			else if (REGEX_LIST_UPPER_ROMAN.test(listStyleType)) {
+				listTagsIn.push(' type="I"');
 			}
 			else {
-				listTagsIn.push('1]');
+				listTagsIn.push(' type="1"');
 			}
+
+			var start = element.start;
+
+			if (start >= 0) {
+				listTagsIn.push(' start="' + start + '"');
+			}
+
+			listTagsIn.push(']');
 
 			listTagsOut.push('[/list]');
 		},
@@ -628,7 +646,7 @@
 
 			var alignment = style.textAlign.toLowerCase();
 
-			if (alignment == 'center') {
+			if (alignment === 'center') {
 				stylesTagsIn.push('[center]');
 
 				stylesTagsOut.push('[/center]');
@@ -640,7 +658,7 @@
 
 			var alignment = style.textAlign.toLowerCase();
 
-			if (alignment == 'justify') {
+			if (alignment === 'justify') {
 				stylesTagsIn.push('[justify]');
 
 				stylesTagsOut.push('[/justify]');
@@ -652,7 +670,7 @@
 
 			var alignment = style.textAlign.toLowerCase();
 
-			if (alignment == 'left') {
+			if (alignment === 'left') {
 				stylesTagsIn.push('[left]');
 
 				stylesTagsOut.push('[/left]');
@@ -664,7 +682,7 @@
 
 			var alignment = style.textAlign.toLowerCase();
 
-			if (alignment == 'right') {
+			if (alignment === 'right') {
 				stylesTagsIn.push('[right]');
 
 				stylesTagsOut.push('[/right]');
@@ -676,7 +694,7 @@
 
 			var fontWeight = style.fontWeight;
 
-			if (fontWeight.toLowerCase() == 'bold') {
+			if (fontWeight.toLowerCase() === 'bold') {
 				stylesTagsIn.push('[b]');
 
 				stylesTagsOut.push('[/b]');
@@ -732,27 +750,10 @@
 
 			var fontStyle = style.fontStyle;
 
-			if (fontStyle.toLowerCase() == 'italic') {
+			if (fontStyle.toLowerCase() === 'italic') {
 				stylesTagsIn.push('[i]');
 
 				stylesTagsOut.push('[/i]');
-			}
-		},
-
-		_handleStyleTextDecoration: function(element, stylesTagsIn, stylesTagsOut) {
-			var style = element.style;
-
-			var textDecoration = style.textDecoration.toLowerCase();
-
-			if (textDecoration == 'line-through') {
-				stylesTagsIn.push('[s]');
-
-				stylesTagsOut.push('[/s]');
-			}
-			else if (textDecoration == 'underline') {
-				stylesTagsIn.push('[u]');
-
-				stylesTagsOut.push('[/u]');
 			}
 		},
 
@@ -761,7 +762,7 @@
 
 			var tagName = element.tagName;
 
-			if ((!tagName || tagName.toLowerCase() != TAG_LINK) && element.style) {
+			if ((!tagName || tagName.toLowerCase() !== TAG_LINK) && element.style) {
 				instance._handleStyleAlignCenter(element, stylesTagsIn, stylesTagsOut);
 				instance._handleStyleAlignJustify(element, stylesTagsIn, stylesTagsOut);
 				instance._handleStyleAlignLeft(element, stylesTagsIn, stylesTagsOut);
@@ -775,9 +776,24 @@
 			}
 		},
 
-		_handleTable: function(element, listTagsIn, listTagsOut) {
-			var instance = this;
+		_handleStyleTextDecoration: function(element, stylesTagsIn, stylesTagsOut) {
+			var style = element.style;
 
+			var textDecoration = style.textDecoration.toLowerCase();
+
+			if (textDecoration === 'line-through') {
+				stylesTagsIn.push('[s]');
+
+				stylesTagsOut.push('[/s]');
+			}
+			else if (textDecoration === 'underline') {
+				stylesTagsIn.push('[u]');
+
+				stylesTagsOut.push('[/u]');
+			}
+		},
+
+		_handleTable: function(element, listTagsIn, listTagsOut) {
 			listTagsIn.push('[table]', NEW_LINE);
 
 			listTagsOut.push('[/table]');
@@ -794,43 +810,53 @@
 		},
 
 		_handleTableCell: function(element, listTagsIn, listTagsOut) {
-			var instance = this;
-
 			listTagsIn.push('[td]');
 
 			listTagsOut.push('[/td]', NEW_LINE);
 		},
 
 		_handleTableHeader: function(element, listTagsIn, listTagsOut) {
-			var instance = this;
-
 			listTagsIn.push('[th]');
 
 			listTagsOut.push('[/th]', NEW_LINE);
 		},
 
 		_handleTableRow: function(element, listTagsIn, listTagsOut) {
-			var instance = this;
-
 			listTagsIn.push('[tr]', NEW_LINE);
 
 			listTagsOut.push('[/tr]', NEW_LINE);
 		},
 
 		_handleUnderline: function(element, listTagsIn, listTagsOut) {
-			var instance = this;
-
 			listTagsIn.push('[u]');
 
 			listTagsOut.push('[/u]');
 		},
 
 		_handleUnorderedList: function(element, listTagsIn, listTagsOut) {
-			var instance = this;
+			listTagsIn.push('[list');
 
-			listTagsIn.push('[list]');
+			var listStyleType = element.style.listStyleType;
+
+			if (REGEX_LIST_CIRCLE.test(listStyleType)) {
+				listTagsIn.push(' type="circle"]');
+			}
+			else if (REGEX_LIST_SQUARE.test(listStyleType)) {
+				listTagsIn.push(' type="square"]');
+			}
+			else {
+				listTagsIn.push(' type="disc"]');
+			}
 
 			listTagsOut.push('[/list]');
+		},
+
+		_isLastItemNewLine: function() {
+			var instance = this;
+
+			var endResult = instance._endResult;
+
+			return endResult && REGEX_LASTCHAR_NEWLINE_WHITESPACE.test(endResult.slice(-1));
 		},
 
 		_pushTagList: function(tagsList) {
@@ -851,4 +877,17 @@
 
 		_inPRE: false
 	};
+
+	CKEDITOR.plugins.add(
+		'bbcode_data_processor',
+		{
+			requires: ['htmlwriter'],
+
+			init: function(editor) {
+				editor.dataProcessor = new BBCodeDataProcessor(editor);
+
+				editor.fire('customDataProcessorLoaded');
+			}
+		}
+	);
 })();

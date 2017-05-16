@@ -9,7 +9,7 @@
 <%@taglib prefix="portlet" uri="http://java.sun.com/portlet" %>
 <%@taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
-<%@taglib uri="http://liferay.com/tld/ui" prefix="liferay-ui" %>
+<%@taglib prefix="liferay-ui" uri="http://liferay.com/tld/ui"  %>
 
 <fmt:setBundle basename="Language"/>
 <portlet:defineObjects />
