@@ -63,7 +63,7 @@
         <tr>
             <td><a href="javascript:loadUnregisterView()"><fmt:message key="newsletter.registration.link.unregister" /></a> </td>
             <td>
-                <input id="btn-register-<portlet:namespace/>" type="button" value="<fmt:message key="newsletter.registration.button.register" />" />
+                <input id="btn-register-<portlet:namespace/>" type="button" onclick="registerEmail()"  value="<fmt:message key="newsletter.registration.button.register" />" />
             </td>
         </tr>
         </c:if>
@@ -110,33 +110,37 @@
         
         
         // click on 'Remove' button
-        jQuery('#btn-register-<portlet:namespace/>').click(function(){
-            clearMessages();
-            clearErrors();
-            // validate form
-             var form = jQuery('#register-form-${namespace}');
-             if (form.valid()){ 
+//         jQuery('#btn-register-<portlet:namespace/>').click(function(){
+//         	alert('hello');
+//             clearMessages();
+//             clearErrors();
+//             // validate form
+//              var form = jQuery('#register-form-${namespace}');
+//              if (form.valid()){ 
                  
-                    // send data via ajax
-                    jQuery.ajax({
-                        url: '${registerUrl}'
-                        ,type: 'POST'
-                        ,data: form.serialize()
-                        ,success: function(response){
-                            if (response.success){
-                                showMessages(response.messages);
-                                form.resetForm();
-                                $('#register-form-${namespace} .error').text('');
-                            }else{
-                                showErrors(response.validationKeys);
-                            }
-                        }
-                        ,failure: function(response){
-                            // TODO: display errors here
-                        }
-                    });
-             }
-        });
+//                     // send data via ajax
+//                     jQuery.ajax({
+//                         url: '${registerUrl}'
+//                         ,type: 'POST'
+//                         ,data: form.serialize()
+//                         ,success: function(response){
+//                             if (response.success){
+//                             	alert('Sucesso!');
+//                                 showMessages(response.messages);
+//                                 form.resetForm();
+//                                 $('#register-form-${namespace} .error').text('');
+//                             }else{
+//                             	alert('Erro');
+//                                 showErrors(response.validationKeys);
+//                             }
+//                         }
+//                         ,failure: function(response){
+//                             // TODO: display errors here
+//                             alert(response);
+//                         }
+//                     });
+//              }
+//         });
         
           
     }
@@ -149,5 +153,34 @@
         clearMessages();
         clearErrors();
         $('#newsletter-registration-panel-<portlet:namespace/>').load('${showUnregisterFormUrl}');
+    }
+    
+    function registerEmail(){
+        clearMessages();
+        clearErrors();
+        // validate form
+         var form = jQuery('#register-form-${namespace}');
+         if (form.valid()){ 
+             
+                // send data via ajax
+                jQuery.ajax({
+                    url: '${registerUrl}'
+                    ,type: 'POST'
+                    ,data: form.serialize()
+                    ,success: function(response){
+                        if (response.success){
+                            showMessages(response.messages);
+                            form.resetForm();
+                            $('#register-form-${namespace} .error').text('');
+                        }else{
+                            showErrors(response.validationKeys);
+                        }
+                    }
+                    ,failure: function(response){
+                        // TODO: display errors here
+                        alert(response);
+                    }
+                });
+         }
     }
 </script>

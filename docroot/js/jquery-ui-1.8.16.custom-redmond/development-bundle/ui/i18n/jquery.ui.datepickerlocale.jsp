@@ -1,6 +1,11 @@
 <%@page import="com.liferay.portal.kernel.util.LocaleUtil"%>
 <%@page import="java.util.Locale"%>
-<%@page contentType="text/html" pageEncoding="UTF-8"%>
+<%@page contentType="application/javascript" pageEncoding="UTF-8"%>
+
+/*
+ * Mime Type : application/javascript
+ */
+ 
 <%    
     String languageId = request.getParameter("languageId");
         

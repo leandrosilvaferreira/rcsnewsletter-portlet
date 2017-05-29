@@ -86,3 +86,28 @@ StringBuilder.prototype.ToString = function()
 {
     return this._Strings.join( '' ) ;
 }
+
+					
+					var escapeHTML = (function() {
+						var	tagsToReplace = {
+							'&': '&amp;',
+							'<': '&lt;',
+							'>': '&gt;',
+							'"': '&#034;',
+							'\'': '&#039;',
+							'/': '&#047;',
+							'`': '&#096;'
+						};
+
+						var replaceTag = function(tag) {
+							return tagsToReplace[tag] || tag;
+						};
+
+						var regexp = /[&<>"'/`]/g;
+
+						return function(str) {
+							return str.replace(regexp, replaceTag);
+						};
+					})();
+					
+				

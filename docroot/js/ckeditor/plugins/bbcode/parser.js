@@ -2,7 +2,7 @@
 	var hasOwnProperty = Object.prototype.hasOwnProperty;
 
 	var isString = function(val) {
-		return typeof val == 'string';
+		return (typeof val == 'string');
 	};
 
 	var ELEMENTS_BLOCK = {
@@ -37,8 +37,6 @@
 		'u': 1,
 		'url': 1
 	};
-
-	var REGEX_TAG_NAME = /^\/?(?:b|center|code|colou?r|email|i|img|justify|left|pre|q|quote|right|\*|s|size|table|tr|th|td|li|list|font|u|url)$/i;
 
 	var STR_TAG_CODE = 'code';
 
@@ -82,7 +80,7 @@
 
 			var token;
 
-			while (token = lexer.getNextToken()) {
+			while ((token = lexer.getNextToken())) {
 				instance._handleData(token, data);
 
 				if (token[1]) {
@@ -125,15 +123,9 @@
 			var lastIndex = length;
 
 			if (token) {
+				length = token.index;
+
 				lastIndex = instance._lexer.getLastIndex();
-
-				length = lastIndex;
-
-				var tokenItem = token[1] || token[3];
-
-				if (instance._isValidTag(tokenItem)) {
-					length = token.index;
-				}
 			}
 
 			if (length > instance._dataPointer) {
@@ -155,9 +147,9 @@
 
 			var stack = instance._stack;
 
-			var tagName;
-
 			if (token) {
+				var tagName;
+
 				if (isString(token)) {
 					tagName = token;
 				}
@@ -195,41 +187,29 @@
 
 			var tagName = token[1].toLowerCase();
 
-			if (instance._isValidTag(tagName)) {
-				var stack = instance._stack;
+			var stack = instance._stack;
 
-				if (hasOwnProperty.call(ELEMENTS_BLOCK, tagName)) {
-					var lastTag;
+			if (hasOwnProperty.call(ELEMENTS_BLOCK, tagName)) {
+				var lastTag;
 
-					while ((lastTag = stack.last()) && hasOwnProperty.call(ELEMENTS_INLINE, lastTag)) {
-						instance._handleTagEnd(lastTag);
-					}
+				while ((lastTag = stack.last()) && hasOwnProperty.call(ELEMENTS_INLINE, lastTag)) {
+					instance._handleTagEnd(lastTag);
 				}
-
-				if (hasOwnProperty.call(ELEMENTS_CLOSE_SELF, tagName) && stack.last() == tagName) {
-					instance._handleTagEnd(tagName);
-				}
-
-				stack.push(tagName);
-
-				instance._result.push(
-					{
-						attribute: token[2],
-						type: Parser.TOKEN_TAG_START,
-						value: tagName
-					}
-				);
-			}
-		},
-
-		_isValidTag: function(tagName) {
-			var valid = false;
-
-			if (tagName && tagName.length) {
-				valid = REGEX_TAG_NAME.test(tagName);
 			}
 
-			return valid;
+			if (hasOwnProperty.call(ELEMENTS_CLOSE_SELF, tagName) && stack.last() == tagName) {
+				instance._handleTagEnd(tagName);
+			}
+
+			stack.push(tagName);
+
+			instance._result.push(
+				{
+					attribute: token[2],
+					type: Parser.TOKEN_TAG_START,
+					value: tagName
+				}
+			);
 		},
 
 		_reset: function() {

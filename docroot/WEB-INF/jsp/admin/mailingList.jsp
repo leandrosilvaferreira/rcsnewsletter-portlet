@@ -291,6 +291,9 @@
      * 
      */
     function sendTestEmail(mailingId, emailAddress){
+    	
+    	 alert('${testEmailUrl}');
+    	
          jQuery.ajax({
             url: '${testEmailUrl}'
             ,type: 'POST'

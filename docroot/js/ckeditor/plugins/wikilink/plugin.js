@@ -1,6 +1,15 @@
 CKEDITOR.plugins.add(
 	'wikilink',
 	{
+		beforeInit: function( editor ) {
+			CKEDITOR.tools.extend(
+				editor.config, {
+					listIndentOnly: true
+				},
+				true
+			);
+		},
+
 		init: function(editor) {
 			var instance = this;
 
@@ -19,13 +28,13 @@ CKEDITOR.plugins.add(
 				'Unlink',
 				{
 					command: 'unlink',
-					label: editor.lang.link.unlink
+					label: editor.lang.unlink
 				}
 			);
 
 			CKEDITOR.dialog.add('link', instance.path + 'dialogs/link.js');
 
-			editor.on(
+			 editor.on(
 				'selectionChange',
 				function(event) {
 
@@ -73,7 +82,7 @@ CKEDITOR.plugins.add(
 						unlink: {
 							command: 'unlink',
 							group: 'link',
-							label: editor.lang.link.unlink,
+							label: editor.lang.unlink,
 							order: 5
 						}
 					}
@@ -135,23 +144,19 @@ CKEDITOR.plugins.link = {
 	}
 };
 
-CKEDITOR.unlinkCommand = function() {
-};
+CKEDITOR.unlinkCommand = function() {};
 
 CKEDITOR.unlinkCommand.prototype = {
 	startDisabled: true,
 
 	exec: function(editor) {
 		var selection = editor.getSelection();
-
 		var bookmarks = selection.createBookmarks();
 		var ranges = selection.getRanges();
-
 		var length = ranges.length;
 
-		for (var i = 0; i < length; i++) {
+		for (var i = 0 ; i < length; i++) {
 			var rangeRoot = ranges[i].getCommonAncestor(true);
-
 			var element = rangeRoot.getAscendant('a', true);
 
 			if (!element) {

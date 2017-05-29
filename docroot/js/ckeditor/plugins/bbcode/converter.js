@@ -1,7 +1,6 @@
 ;(function() {
-	var A = AUI();
-
 	var BBCodeUtil = Liferay.BBCodeUtil;
+	var Util = Liferay.Util;
 	var CKTools = CKEDITOR.tools;
 
 	var Parser = Liferay.BBCodeParser;
@@ -11,13 +10,12 @@
 	var MAP_FONT_SIZE = {
 		1: 10,
 		2: 12,
-		3: 14,
-		4: 16,
-		5: 18,
-		6: 24,
-		7: 32,
-		8: 48,
-		defaultSize: 14
+		3: 16,
+		4: 18,
+		5: 24,
+		6: 32,
+		7: 48,
+		defaultSize: 12
 	};
 
 	var MAP_HANDLERS = {
@@ -64,27 +62,18 @@
 		'width': 1
 	};
 
-	var MAP_ORDERED_LIST_STYLES = {
+	var MAP_LIST_STYLES = {
 		1: 'list-style-type: decimal;',
-		a: 'list-style-type: lower-alpha;',
-		i: 'list-style-type: lower-roman;',
-		A: 'list-style-type: upper-alpha;',
-		I: 'list-style-type: upper-roman;'
+		a: 'list-style-type: lower-alpha;'
 	};
 
 	var MAP_TOKENS_EXCLUDE_NEW_LINE = {
 		'*': 3,
 		li: 3,
-		table: 2,
+		tr: 3,
 		td: 3,
 		th: 3,
-		tr: 3
-	};
-
-	var MAP_UNORDERED_LIST_STYLES = {
-		circle: 'list-style-type: circle;',
-		disc: 'list-style-type: disc;',
-		square: 'list-style-type: square;'
+		table: 2
 	};
 
 	var REGEX_ATTRS = /\s*([^=]+)\s*=\s*"([^"]+)"\s*/g;
@@ -93,7 +82,7 @@
 
 	var REGEX_ESCAPE_REGEX = /[-[\]{}()*+?.,\\^$|#\s]/g;
 
-	var REGEX_IMAGE_SRC = /^(?:https?:\/\/|\/)[-;\/\?:@&=\+\$,_\.!~\*'\(\)%0-9a-z]{1,2048}$/i;
+	var REGEX_IMAGE_SRC = /^(?:https?:\/\/|\/)[-;\/\?:@&=\+\$,_\.!~\*'\(\)%0-9a-z]{1,512}$/i;
 
 	var REGEX_LASTCHAR_NEWLINE = /\r?\n$/;
 
@@ -103,7 +92,9 @@
 
 	var REGEX_STRING_IS_NEW_LINE = /^\r?\n$/;
 
-	var REGEX_URI = /^[-;\/\?:@&=\+\$,_\.!~\*'\(\)%0-9a-z#]{1,2048}$|\${\S+}/i;
+	var REGEX_TAG_NAME = /^\/?(?:b|center|code|colou?r|email|i|img|justify|left|pre|q|quote|right|\*|s|size|table|tr|th|td|li|list|font|u|url)$/i;
+
+	var REGEX_URI = /^[-;\/\?:@&=\+\$,_\.!~\*'\(\)%0-9a-z#]{1,512}$|\${\S+}/i;
 
 	var STR_BLANK = '';
 
@@ -117,13 +108,11 @@
 
 	var STR_NEW_LINE = '\n';
 
-	var STR_START = 'start';
-
-	var STR_TAG_A_CLOSE = '</a>';
-
 	var STR_TAG_ATTR_CLOSE = '">';
 
 	var STR_TAG_ATTR_HREF_OPEN = '<a href="';
+
+	var STR_TAG_A_CLOSE = '</a>';
 
 	var STR_TAG_END_CLOSE = '>';
 
@@ -142,8 +131,6 @@
 	var STR_TAG_URL = 'url';
 
 	var STR_TEXT_ALIGN = '<p style="text-align: ';
-
-	var STR_TYPE = 'type';
 
 	var TOKEN_DATA = Parser.TOKEN_DATA;
 
@@ -191,13 +178,13 @@
 
 				var type = token.type;
 
-				if (type === TOKEN_TAG_START) {
+				if (type == TOKEN_TAG_START) {
 					instance._handleTagStart(token);
 				}
-				else if (type === TOKEN_TAG_END) {
+				else if (type == TOKEN_TAG_END) {
 					instance._handleTagEnd(token);
 				}
-				else if (type === TOKEN_DATA) {
+				else if (type == TOKEN_DATA) {
 					instance._handleData(token);
 				}
 				else {
@@ -212,7 +199,7 @@
 			return result;
 		},
 
-		_escapeHTML: A.Lang.String.escapeHTML,
+		_escapeHTML: Util.escapeHTML,
 
 		_extractData: function(toTagName, consume) {
 			var instance = this;
@@ -226,12 +213,12 @@
 			do {
 				token = instance._parsedData[index++];
 
-				if (token && token.type === TOKEN_DATA) {
+				if (token.type == TOKEN_DATA) {
 					result.push(token.value);
 				}
 
 			}
-			while (token && token.type !== TOKEN_TAG_END && token.value !== toTagName);
+			while ((token.type != TOKEN_TAG_END) && (token.value != toTagName));
 
 			if (consume) {
 				instance._tokenPointer = index - 1;
@@ -360,12 +347,12 @@
 		_handleImageAttributes: function(token) {
 			var instance = this;
 
-			var attrs = STR_BLANK;
+			var attrs = '';
 
 			if (token.attribute) {
 				var bbCodeAttr;
 
-				while (bbCodeAttr = REGEX_ATTRS.exec(token.attribute)) {
+				while ((bbCodeAttr = REGEX_ATTRS.exec(token.attribute))) {
 					var attrName = bbCodeAttr[1];
 
 					if (MAP_IMAGE_ATTRIBUTES[attrName]) {
@@ -384,39 +371,24 @@
 		_handleList: function(token) {
 			var instance = this;
 
-			var listAttributes = STR_BLANK;
 			var tag = 'ul';
+			var styleAttr;
 
-			if (token.attribute) {
-				var listAttribute;
+			var listAttribute = token.attribute;
 
-				while (listAttribute = REGEX_ATTRS.exec(token.attribute)) {
-					var attrName = listAttribute[1];
-					var attrValue = listAttribute[2];
+			if (listAttribute) {
+				tag = 'ol';
 
-					var styleAttr;
-
-					if (attrName === STR_TYPE) {
-						if (MAP_ORDERED_LIST_STYLES[attrValue]) {
-							styleAttr = MAP_ORDERED_LIST_STYLES[attrValue];
-
-							tag = 'ol';
-						}
-						else {
-							styleAttr = MAP_UNORDERED_LIST_STYLES[attrValue];
-						}
-
-						if (styleAttr) {
-							listAttributes += ' style="' + styleAttr + '"';
-						}
-					}
-					else if (attrName === STR_START && REGEX_NUMBER.test(attrValue)) {
-						listAttributes += ' start="' + attrValue + '"';
-					}
-				}
+				styleAttr = MAP_LIST_STYLES[listAttribute];
 			}
 
-			instance._result.push(STR_TAG_OPEN + tag + listAttributes + STR_TAG_END_CLOSE);
+			var result = STR_TAG_OPEN + tag + STR_TAG_END_CLOSE;
+
+			if (styleAttr) {
+				result = STR_TAG_OPEN + tag + ' style="' + styleAttr + STR_TAG_ATTR_CLOSE;
+			}
+
+			instance._result.push(result);
 
 			instance._stack.push(STR_TAG_END_OPEN + tag + STR_TAG_END_CLOSE);
 		},
@@ -438,17 +410,17 @@
 
 					if (nextToken &&
 						hasOwnProperty.call(MAP_TOKENS_EXCLUDE_NEW_LINE, nextToken.value) &&
-						nextToken.type & MAP_TOKENS_EXCLUDE_NEW_LINE[nextToken.value]) {
+						(nextToken.type & MAP_TOKENS_EXCLUDE_NEW_LINE[nextToken.value])) {
 
-						value = STR_BLANK;
+							value = STR_BLANK;
 					}
 				}
 				else if (REGEX_LASTCHAR_NEWLINE.test(value)) {
 					nextToken = instance._parsedData[instance._tokenPointer + 1];
 
 					if (nextToken &&
-						nextToken.type === TOKEN_TAG_END &&
-						nextToken.value === STR_TAG_LIST_ITEM_SHORT) {
+						(nextToken.type == TOKEN_TAG_END) &&
+						(nextToken.value == STR_TAG_LIST_ITEM_SHORT)) {
 
 						value = value.substring(0, value.length - 1);
 					}
@@ -506,7 +478,7 @@
 				size = '1';
 			}
 
-			instance._result.push(STR_TAG_SPAN_STYLE_OPEN, 'font-size: ', instance._getFontSize(size), 'px;', STR_TAG_ATTR_CLOSE);
+			instance._result.push(STR_TAG_SPAN_STYLE_OPEN, 'font-size: ', instance._getFontSize(size), 'px', STR_TAG_ATTR_CLOSE);
 
 			instance._stack.push(STR_TAG_SPAN_CLOSE);
 		},
@@ -552,10 +524,12 @@
 
 			var tagName = token.value;
 
-			instance._result.push(instance._stack.pop());
+			if (instance._isValidTag(tagName)) {
+				instance._result.push(instance._stack.pop());
 
-			if (tagName === STR_CODE) {
-				instance._noParse = false;
+				if (tagName == STR_CODE) {
+					instance._noParse = false;
+				}
 			}
 		},
 
@@ -564,9 +538,11 @@
 
 			var tagName = token.value;
 
-			var handlerName = MAP_HANDLERS[tagName] || '_handleSimpleTags';
+			if (instance._isValidTag(tagName)) {
+				var handlerName = MAP_HANDLERS[tagName] || '_handleSimpleTags';
 
-			instance[handlerName](token);
+				instance[handlerName](token);
+			}
 		},
 
 		_handleTextAlign: function(token) {
@@ -591,6 +567,16 @@
 			instance._result.push(STR_TAG_ATTR_HREF_OPEN + href + STR_TAG_ATTR_CLOSE);
 
 			instance._stack.push(STR_TAG_A_CLOSE);
+		},
+
+		_isValidTag: function(tagName) {
+			var valid = false;
+
+			if (tagName && tagName.length) {
+				valid = REGEX_TAG_NAME.test(tagName);
+			}
+
+			return valid;
 		},
 
 		_reset: function() {

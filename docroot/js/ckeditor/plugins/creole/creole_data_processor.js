@@ -1,9 +1,9 @@
 (function() {
 	var CKTools = CKEDITOR.tools;
 
-	var NEW_LINE = '\n';
+	var CSS_ESCAPED = 'escaped';
 
-	var REGEX_CREOLE_RESERVED_CHARACTERS = /(\/{1,2}|={1,6}|\[{1,2}|\]{1,2}|\\{1,2}|\*{1,}|----|{{2,3}|}{2,3}|#{1,})/g;
+	var NEW_LINE = '\n';
 
 	var REGEX_HEADER = /^h([1-6])$/i;
 
@@ -24,6 +24,8 @@
 	var STR_PIPE = '|';
 
 	var STR_SPACE = ' ';
+
+	var STR_TILDE = '~';
 
 	var TAG_BOLD = '**';
 
@@ -47,24 +49,12 @@
 
 	var attachmentURLPrefix;
 
-	var brFiller = CKEDITOR.env.needsBrFiller ? '<br>' : '';
-
-	var enterModeEmptyValue = {
-		1: ['<p>' + brFiller + '</p>'],
-		2: [brFiller],
-		3: ['<div>' + brFiller + '</div>']
-	};
-
-	var CreoleDataProcessor = function(editor) {
-		var instance = this;
-
-		instance._editor = editor;
-	};
+	var CreoleDataProcessor = function() {};
 
 	CreoleDataProcessor.prototype = {
 		constructor: CreoleDataProcessor,
 
-		toDataFormat: function(html, config) {
+		toDataFormat: function(html, fixForBody ) {
 			var instance = this;
 
 			var data = instance._convert(html);
@@ -75,12 +65,18 @@
 		toHtml: function(data, config) {
 			var instance = this;
 
+			if (!instance._creoleParser) {
+				instance._creoleParser = new CKEDITOR.CreoleParser(
+					{
+						imagePrefix: attachmentURLPrefix
+					}
+				);
+			}
+
 			if (config) {
 				var fragment = CKEDITOR.htmlParser.fragment.fromHtml(data);
 
 				var writer = new CKEDITOR.htmlParser.basicWriter();
-
-				config.filter.applyTo(fragment);
 
 				fragment.writeHtml(writer);
 
@@ -89,20 +85,12 @@
 			else {
 				var div = document.createElement('div');
 
-				if (!instance._creoleParser) {
-					instance._creoleParser = new CKEDITOR.CreoleParser(
-						{
-							imagePrefix: attachmentURLPrefix
-						}
-					);
-				}
-
 				instance._creoleParser.parse(div, data);
 
 				data = div.innerHTML;
 			}
 
-			return data || enterModeEmptyValue[instance._editor.enterMode];
+			return data;
 		},
 
 		_appendNewLines: function(total) {
@@ -149,23 +137,19 @@
 			}
 
 			var children = node.childNodes;
-
 			var pushTagList = instance._pushTagList;
+			var length = children.length;
 
-			for (var i = 0; i < children.length; i++) {
+			for (var i = 0; i < length; i++) {
 				var listTagsIn = [];
 				var listTagsOut = [];
+
 				var stylesTagsIn = [];
 				var stylesTagsOut = [];
 
 				var child = children[i];
 
-				if (instance._skipParse) {
-					instance._handleData(child.data || child.outerHTML, node);
-
-					continue;
-				}
-				else if (instance._isIgnorable(child)) {
+				if (instance._isIgnorable(child) && !instance._skipParse) {
 					continue;
 				}
 
@@ -191,14 +175,12 @@
 
 			var newLineCharacter = STR_LIST_ITEM_ESCAPE_CHARACTERS;
 
-			var nextSibling = element.nextSibling;
-
 			if (instance._skipParse) {
 				newLineCharacter = NEW_LINE;
 
 				listTagsIn.push(newLineCharacter);
 			}
-			else if (element.previousSibling && nextSibling && nextSibling !== NEW_LINE) {
+			else if (element.previousSibling && element.nextSibling && (element.nextSibling !== NEW_LINE)) {
 				listTagsIn.push(newLineCharacter);
 			}
 		},
@@ -209,33 +191,6 @@
 			if (data) {
 				if (!instance._skipParse) {
 					data = data.replace(REGEX_NEWLINE, STR_BLANK);
-
-					if (!instance._verbatim) {
-						data = data.replace(
-							REGEX_CREOLE_RESERVED_CHARACTERS,
-							function(match, p1, offset, string) {
-								var res = '';
-
-								if (!instance._endResult.length) {
-									res += '~' + p1;
-								}
-								else {
-									var lastResultString = instance._endResult[instance._endResult.length - 1];
-
-									var lastResultCharacter = lastResultString[lastResultString.length - 1];
-
-									if (lastResultCharacter !== '~' && lastResultCharacter !== p1[0]) {
-										res += '~';
-									}
-
-									res += p1;
-
-								}
-
-								return res;
-							}
-						);
-					}
 				}
 
 				instance._endResult.push(data);
@@ -271,24 +226,25 @@
 				if (!instance._isLastItemNewLine()) {
 					instance._endResult.push(NEW_LINE);
 				}
+
+				instance._skipParse = false;
+			}
+			else if (tagName == TAG_TELETYPETEXT) {
+				instance._skipParse = false;
 			}
 			else if (tagName == 'table') {
 				listTagsOut.push(NEW_LINE);
 			}
-
-			instance._skipParse = false;
-			instance._verbatim = false;
 		},
 
 		_handleElementStart: function(element, listTagsIn, listTagsOut) {
 			var instance = this;
 
 			var tagName = element.tagName;
+			var params;
 
 			if (tagName) {
 				tagName = tagName.toLowerCase();
-
-				var regexHeader = REGEX_HEADER.exec(tagName);
 
 				if (tagName == TAG_PARAGRAPH) {
 					instance._handleParagraph(element, listTagsIn, listTagsOut);
@@ -298,6 +254,9 @@
 				}
 				else if (tagName == 'a') {
 					instance._handleLink(element, listTagsIn, listTagsOut);
+				}
+				else if (tagName == 'span') {
+					instance._handleSpan(element, listTagsIn, listTagsOut);
 				}
 				else if (tagName == 'strong' || tagName == 'b') {
 					instance._handleStrong(element, listTagsIn, listTagsOut);
@@ -326,8 +285,8 @@
 				else if (tagName == TAG_TELETYPETEXT) {
 					instance._handleTT(element, listTagsIn, listTagsOut);
 				}
-				else if (regexHeader) {
-					instance._handleHeader(element, listTagsIn, listTagsOut, regexHeader);
+				else if ((params = REGEX_HEADER.exec(tagName))) {
+					instance._handleHeader(element, listTagsIn, listTagsOut, params);
 				}
 				else if (tagName == 'th') {
 					instance._handleTableHeader(element, listTagsIn, listTagsOut);
@@ -359,8 +318,6 @@
 
 			listTagsIn.push(res, STR_SPACE);
 			listTagsOut.push(STR_SPACE, res, NEW_LINE);
-
-			instance._verbatim = true;
 		},
 
 		_handleHr: function(element, listTagsIn, listTagsOut) {
@@ -389,28 +346,21 @@
 		},
 
 		_handleLink: function(element, listTagsIn, listTagsOut) {
-			var instance = this;
-
 			var hrefAttribute = element.getAttribute('href');
 
-			if (hrefAttribute) {
-				if (!REGEX_URL_PREFIX.test(hrefAttribute)) {
-					hrefAttribute = decodeURIComponent(hrefAttribute);
-				}
-
-				var linkText = element.textContent || element.innerText;
-
-				listTagsIn.push('[[');
-
-				if (linkText === hrefAttribute) {
-					instance._verbatim = true;
-				}
-				else {
-					listTagsIn.push(hrefAttribute, STR_PIPE);
-				}
-
-				listTagsOut.push(']]');
+			if (!REGEX_URL_PREFIX.test(hrefAttribute)) {
+				hrefAttribute = decodeURIComponent(hrefAttribute);
 			}
+
+			var linkText = element.textContent || element.innerText;
+
+			listTagsIn.push('[[');
+
+			if (linkText !== hrefAttribute) {
+				listTagsIn.push(hrefAttribute, STR_PIPE);
+			}
+
+			listTagsOut.push(']]');
 		},
 
 		_handleListItem: function(element, listTagsIn, listTagsOut) {
@@ -448,20 +398,31 @@
 
 			instance._skipParse = true;
 
+			var endResult = instance._endResult;
+
 			if (instance._isDataAvailable() && !instance._isLastItemNewLine()) {
-				instance._endResult.push(NEW_LINE);
+				endResult.push(NEW_LINE);
 			}
 
 			listTagsIn.push('{{{', NEW_LINE);
+
 			listTagsOut.push('}}}', NEW_LINE);
+		},
+
+		_handleSpan: function(element, listTagsIn, listTagsOut) {
+			var instance = this;
+
+			if (instance._hasClass(element, CSS_ESCAPED)) {
+				listTagsIn.push(STR_TILDE);
+			}
 		},
 
 		_handleStrong: function(element, listTagsIn, listTagsOut) {
 			var instance = this;
 
-			var previousSibling = element.previousSibling;
+			if (instance._isParentNode(element, TAG_LIST_ITEM) &&
+				(!element.previousSibling || instance._isIgnorable(element.previousSibling))) {
 
-			if (instance._isParentNode(element, TAG_LIST_ITEM) && (!previousSibling || instance._isIgnorable(previousSibling))) {
 				listTagsIn.push(STR_SPACE);
 			}
 
@@ -509,6 +470,7 @@
 			instance._skipParse = true;
 
 			listTagsIn.push('{{{');
+
 			listTagsOut.push('}}}');
 		},
 
@@ -536,9 +498,7 @@
 			var tagName = parentNode && parentNode.tagName && parentNode.tagName.toLowerCase();
 
 			if (tagName) {
-				var length = tags.length;
-
-				for (var i = 0; i < length; i++) {
+				for (var i = 0, length = tags.length; i < length; i++) {
 					result = instance._tagNameMatch(tagName, tags[i]);
 
 					if (result) {
@@ -557,9 +517,7 @@
 		_isDataAvailable: function() {
 			var instance = this;
 
-			var endResult = instance._endResult;
-
-			return endResult && endResult.length;
+			return instance._endResult && instance._endResult.length;
 		},
 
 		_isIgnorable: function(node) {
@@ -567,7 +525,8 @@
 
 			var nodeType = node.nodeType;
 
-			return node.isElementContentWhitespace || nodeType == 8 || nodeType == 3 && instance._isWhitespace(node);
+			return (node.isElementContentWhitespace || nodeType == 8) ||
+				((nodeType == 3) && instance._isWhitespace(node));
 		},
 
 		_isLastItemNewLine: function(node) {
@@ -585,7 +544,7 @@
 		},
 
 		_isWhitespace: function(node) {
-			return node.isElementContentWhitespace || !REGEX_NOT_WHITESPACE.test(node.data);
+			return node.isElementContentWhitespace || !(REGEX_NOT_WHITESPACE.test(node.data));
 		},
 
 		_pushTagList: function(tagsList) {
@@ -607,16 +566,14 @@
 		},
 
 		_tagNameMatch: function(tagSrc, tagDest) {
-			return tagDest instanceof RegExp && tagDest.test(tagSrc) || tagSrc === tagDest;
+			return (tagDest instanceof RegExp && tagDest.test(tagSrc)) || (tagSrc === tagDest);
 		},
 
 		_endResult: null,
 
 		_listsStack: [],
 
-		_skipParse: false,
-
-		_verbatim: true
+		_skipParse: false
 	};
 
 	CKEDITOR.plugins.add(

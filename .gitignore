@@ -1,3 +1,6 @@
+createLPKG.sh
+rcsnewsletter-portlet.war
+rcsnewsletter.lpkg
 /.settings/
 /.classpath
 /.project

@@ -118,6 +118,7 @@ class NewsletterMailingServiceImpl extends CRUDServiceImpl<NewsletterMailing> im
 
             InternetAddress fromIA = new InternetAddress(mailing.getList().getFromEmail());
             InternetAddress toIA = new InternetAddress(testEmail);
+            
             MailMessage message = EmailFormat.getMailMessageWithAttachedImages(fromIA, toIA, title, content);
             message.setHTMLFormat(true);
             LiferayMailingUtil.sendEmail(message);

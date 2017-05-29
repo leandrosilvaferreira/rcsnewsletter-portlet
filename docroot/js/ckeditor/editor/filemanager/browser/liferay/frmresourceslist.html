@@ -95,19 +95,19 @@ function OpenFolder( folderPath )
 function OpenFile( fileUrl, errorMessage )
 {
 	
-						
-							if (!errorMessage) {
-								var match = window.top.location.search.match(/(?:[\?&]|&amp;)CKEditorFuncNum=([^&]+)/i);
+				
+					if (!errorMessage) {
+						var match = window.top.location.search.match(/(?:[\?&]|&amp;)CKEditorFuncNum=([^&]+)/i);
 
-								var funcNum = (match && match.length) ? match[1] : '';
+						var funcNum = (match && match.length) ? match[1] : '';
 
-								window.top.opener.CKEDITOR.tools.callFunction(funcNum, fileUrl);
-							}
-							else {
-								alert(errorMessage);
-							}
-						
-					
+						window.top.opener.CKEDITOR.tools.callFunction(funcNum, fileUrl);
+					}
+					else {
+						alert(errorMessage);
+					}
+				
+			
 	window.top.close() ;
 	window.top.opener.focus() ;
 }
@@ -150,7 +150,7 @@ function GetFoldersAndFilesCallBack( fckXml )
 	for ( var i = 0 ; i < oNodes.length ; i++ )
 	{
 		var sFolderName = oNodes[i].attributes.getNamedItem('name').value ;
-		oHtml.Append( oListManager.GetFolderRowHtml( sFolderName, sCurrentFolderPath + sFolderName + "/" ) ) ;
+		oHtml.Append( oListManager.GetFolderRowHtml( escapeHTML( sFolderName ), sCurrentFolderPath + sFolderName + "/" ) ) ;
 	}
 
 	// Add the Files.
@@ -167,7 +167,7 @@ function GetFoldersAndFilesCallBack( fckXml )
 		 if (sFileErrorMessageNamedItem) {sFileErrorMessage = sFileErrorMessageNamedItem.value;}
 		var sFileUrl = oNode.attributes.getNamedItem('url').value ;
 
-		oHtml.Append( oListManager.GetFileRowHtml( sFileDesc, sFileUrl, sFileSize, sFileErrorMessage ) ) ;
+		oHtml.Append( oListManager.GetFileRowHtml( sFileName, sFileUrl, sFileSize, sFileErrorMessage ) ) ;
 	}
 
 	oHtml.Append( '<\/table>' ) ;
